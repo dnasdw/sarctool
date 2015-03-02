@@ -1,0 +1,5 @@
+// regex: ECMAScript grammar and case insensitive
+//\.bch
+//\.bffnt
+//\.bflim
+.*
