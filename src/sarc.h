@@ -1,9 +1,9 @@
 #ifndef SARC_H_
 #define SARC_H_
 
-#include "utility.h"
+#include <sdw.h>
 
-#include MSC_PUSH_PACKED
+#include SDW_MSC_PUSH_PACKED
 struct SSarcHeader
 {
 	u32 Signature;
@@ -11,16 +11,17 @@ struct SSarcHeader
 	u16 ByteOrder;
 	u32 FileSize;
 	u32 DataOffset;
-	u32 Unknown;
-} GNUC_PACKED;
+	u16 Version;
+	u16 Reserved;
+} SDW_GNUC_PACKED;
 
 struct SSfatHeader
 {
 	u32 Signature;
 	u16 HeaderSize;
 	u16 EntryCount;
-	u32 Unknown;
-} GNUC_PACKED;
+	u32 HashKey;
+} SDW_GNUC_PACKED;
 
 struct SEntry
 {
@@ -28,40 +29,73 @@ struct SEntry
 	u32 NameOffset;
 	u32 BeginOffset;
 	u32 EndOffset;
-} GNUC_PACKED;
+} SDW_GNUC_PACKED;
 
 struct SSfntHeader
 {
 	u32 Signature;
 	u16 HeaderSize;
 	u16 Reserved;
-} GNUC_PACKED;
-#include MSC_POP_PACKED
+} SDW_GNUC_PACKED;
+#include SDW_MSC_POP_PACKED
 
 class CSarc
 {
 public:
+	enum EEndianness
+	{
+		kEndianBig,
+		kEndianLittle
+	};
+	struct SCreateEntry
+	{
+		UString Path;
+		string EntryName;
+		SEntry Entry;
+	};
 	CSarc();
 	~CSarc();
-	void SetFileName(const char* a_pFileName);
-	void SetDirName(const char* a_pRomFsDirName);
+	void SetFileName(const UString& a_sFileName);
+	void SetDirName(const UString& a_sDirName);
+	void SetEndianness(EEndianness a_eEndianness);
+	void SetAlignment(n32 a_nAlignment);
+	void SetHashKey(u32 a_uHashKey);
+	void SetCodePage(u32 a_uCodePage);
+	void SetCodeName(const string& a_sCodeName);
+	void SetNoName(bool a_bNoName);
+	void SetNameIsHash(bool a_bNameIsHash);
 	void SetVerbose(bool a_bVerbose);
-	bool ExportFile();
-	bool ImportFile();
-	static bool IsSarcFile(const char* a_pFileName);
+	bool ExtractFile();
+	bool CreateFile();
+	static bool IsSarcFile(const UString& a_sFileName);
 	static const u32 s_uSignatureSarc;
 	static const u32 s_uSignatureSfat;
 	static const u32 s_uSignatureSfnt;
-	static const int s_nEntryAlignment4;
-	static const int s_nEntryAlignment128;
+	static const u32 s_uEntryMax;
+	static const u32 s_uFileSizeMax;
+	static const u32 s_uEntryNameAlign;
 private:
-	static const char* getExt(char* a_pBuffer);
-	bool setupCreate();
-	void buildAlignList();
+	void setupCreate();
+	void buildIgnoreList();
+	bool createEntryList();
+	bool matchInIgnoreList(const UString& a_sPath) const;
+	u32 hash(const string& a_sEntryName) const;
+	void createEntryName();
+	bool calculateFileOffset();
+	n32 getAlignment(const string& a_sEntryName, const UString& a_sPath) const;
 	void writeHeader();
-	bool matchInAlignList(const String& a_sPath);
-	const char* m_pFileName;
-	String m_sDirName;
+	bool writeData();
+	bool writeFromFile(const UString& a_sPath, u32 a_uOffset, u32 a_uSize);
+	static const char* getExt(const u8* a_pData);
+	UString m_sFileName;
+	UString m_sDirName;
+	EEndianness m_eEndianness;
+	n32 m_nAlignment;
+	u32 m_uHashKey;
+	u32 m_uCodePage;
+	string m_sCodeName;
+	bool m_bNoName;
+	bool m_bNameIsHash;
 	bool m_bVerbose;
 	FILE* m_fpSarc;
 	SSarcHeader m_SarcHeader;
@@ -69,8 +103,8 @@ private:
 	SSfntHeader m_SfntHeader;
 	vector<SEntry> m_vEntry;
 	vector<char> m_vName;
-	unordered_map<n32, String> m_mFilePath;
-	vector<Regex> m_vAlignList;
+	vector<URegex> m_vIgnoreList;
+	vector<SCreateEntry> m_vCreateEntry;
 };
 
 #endif	// SARC_H_

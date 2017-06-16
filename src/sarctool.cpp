@@ -1,21 +1,32 @@
 #include "sarctool.h"
-#include "sarc.h"
 
 CSarcTool::SOption CSarcTool::s_Option[] =
 {
-	{ "export", 'e', "export from the sarc file" },
-	{ "import", 'i', "import to the sarc file" },
-	{ "file", 'f', "the sarc file" },
-	{ "dir", 'd', "the dir for the sarc file" },
-	{ "verbose", 'v', "show the info" },
-	{ "help", 'h', "show this help" },
+	{ USTR("extract"), USTR('x'), USTR("extract the sarc file") },
+	{ USTR("create"), USTR('c'), USTR("create the sarc file") },
+	{ USTR("file"), USTR('f'), USTR("the sarc file") },
+	{ USTR("dir"), USTR('d'), USTR("the dir for the sarc file") },
+	{ USTR("endianness"), USTR('o'), USTR("[big|little]\n\t\tthe endianness, default is little") },
+	{ USTR("alignment"), USTR('a'), USTR("[192|2 factorial (more than 4)]\n\t\tthe alignment, default is 4") },
+	{ USTR("key"), USTR('k'), USTR("the hash key, default is 101") },
+	{ USTR("code-page"), USTR('p'), USTR("code page of SFNT, default is 0 (Windows only)") },
+	{ USTR("code-name"), USTR('e'), USTR("encoding name of SFNT, default is UTF-8 (non-Windows only)") },
+	{ USTR("no-name"), USTR('n'), USTR("no name in SFNT") },
+	{ USTR("name-is-hash"), USTR('i'), USTR("the name is a hash") },
+	{ USTR("verbose"), USTR('v'), USTR("show the info") },
+	{ USTR("help"), USTR('h'), USTR("show this help") },
 	{ nullptr, 0, nullptr }
 };
 
 CSarcTool::CSarcTool()
 	: m_eAction(kActionNone)
-	, m_pFileName(nullptr)
-	, m_pDirName(nullptr)
+	, m_eEndianness(CSarc::kEndianLittle)
+	, m_nAlignment(4)
+	, m_uHashKey(101)
+	, m_uCodePage(0)
+	, m_sCodeName("UTF-8")
+	, m_bNoName(false)
+	, m_bNameIsHash(false)
 	, m_bVerbose(false)
 {
 }
@@ -24,7 +35,7 @@ CSarcTool::~CSarcTool()
 {
 }
 
-int CSarcTool::ParseOptions(int a_nArgc, char* a_pArgv[])
+int CSarcTool::ParseOptions(int a_nArgc, UChar* a_pArgv[])
 {
 	if (a_nArgc <= 1)
 	{
@@ -32,14 +43,18 @@ int CSarcTool::ParseOptions(int a_nArgc, char* a_pArgv[])
 	}
 	for (int i = 1; i < a_nArgc; i++)
 	{
-		int nArgpc = static_cast<int>(strlen(a_pArgv[i]));
-		int nIndex = i;
-		if (a_pArgv[i][0] != '-')
+		int nArgpc = static_cast<int>(UCslen(a_pArgv[i]));
+		if (nArgpc == 0)
 		{
-			printf("ERROR: illegal option\n\n");
+			continue;
+		}
+		int nIndex = i;
+		if (a_pArgv[i][0] != USTR('-'))
+		{
+			UPrintf(USTR("ERROR: illegal option\n\n"));
 			return 1;
 		}
-		else if (nArgpc > 1 && a_pArgv[i][1] != '-')
+		else if (nArgpc > 1 && a_pArgv[i][1] != USTR('-'))
 		{
 			for (int j = 1; j < nArgpc; j++)
 			{
@@ -48,31 +63,37 @@ int CSarcTool::ParseOptions(int a_nArgc, char* a_pArgv[])
 				case kParseOptionReturnSuccess:
 					break;
 				case kParseOptionReturnIllegalOption:
-					printf("ERROR: illegal option\n\n");
+					UPrintf(USTR("ERROR: illegal option\n\n"));
 					return 1;
 				case kParseOptionReturnNoArgument:
-					printf("ERROR: no argument\n\n");
+					UPrintf(USTR("ERROR: no argument\n\n"));
+					return 1;
+				case kParseOptionReturnUnknownArgument:
+					UPrintf(USTR("ERROR: unknown argument \"%") PRIUS USTR("\"\n\n"), m_sMessage.c_str());
 					return 1;
 				case kParseOptionReturnOptionConflict:
-					printf("ERROR: option conflict\n\n");
+					UPrintf(USTR("ERROR: option conflict\n\n"));
 					return 1;
 				}
 			}
 		}
-		else if (nArgpc > 2 && a_pArgv[i][1] == '-')
+		else if (nArgpc > 2 && a_pArgv[i][1] == USTR('-'))
 		{
 			switch (parseOptions(a_pArgv[i] + 2, nIndex, a_nArgc, a_pArgv))
 			{
 			case kParseOptionReturnSuccess:
 				break;
 			case kParseOptionReturnIllegalOption:
-				printf("ERROR: illegal option\n\n");
+				UPrintf(USTR("ERROR: illegal option\n\n"));
 				return 1;
 			case kParseOptionReturnNoArgument:
-				printf("ERROR: no argument\n\n");
+				UPrintf(USTR("ERROR: no argument\n\n"));
+				return 1;
+			case kParseOptionReturnUnknownArgument:
+				UPrintf(USTR("ERROR: unknown argument \"%") PRIUS USTR("\"\n\n"), m_sMessage.c_str());
 				return 1;
 			case kParseOptionReturnOptionConflict:
-				printf("ERROR: option conflict\n\n");
+				UPrintf(USTR("ERROR: option conflict\n\n"));
 				return 1;
 			}
 		}
@@ -85,24 +106,27 @@ int CSarcTool::CheckOptions()
 {
 	if (m_eAction == kActionNone)
 	{
-		printf("ERROR: nothing to do\n\n");
+		UPrintf(USTR("ERROR: nothing to do\n\n"));
 		return 1;
 	}
 	if (m_eAction != kActionHelp)
 	{
-		if (m_pFileName == nullptr)
+		if (m_sFileName.empty())
 		{
-			printf("ERROR: no --file option\n\n");
+			UPrintf(USTR("ERROR: no --file option\n\n"));
 			return 1;
 		}
-		if (m_pDirName == nullptr)
+		if (m_sDirName.empty())
 		{
-			printf("ERROR: no --dir option\n\n");
+			UPrintf(USTR("ERROR: no --dir option\n\n"));
 			return 1;
 		}
-		if (!CSarc::IsSarcFile(m_pFileName))
+	}
+	if (m_eAction == kActionExtract)
+	{
+		if (!CSarc::IsSarcFile(m_sFileName))
 		{
-			printf("ERROR: %s is not a sarc file\n\n", m_pFileName);
+			UPrintf(USTR("ERROR: %") PRIUS USTR(" is not a sarc file\n\n"), m_sFileName.c_str());
 			return 1;
 		}
 	}
@@ -111,38 +135,39 @@ int CSarcTool::CheckOptions()
 
 int CSarcTool::Help()
 {
-	printf("sarctool %s by dnasdw\n\n", SARCTOOL_VERSION);
-	printf("usage: sarctool [option...] [option]...\n");
-	printf("sample:\n");
-	printf("  sarctool -evfd input.sarc outputdir\n");
-	printf("  sarctool -ivfd output.sarc inputdir\n");
-	printf("\n");
-	printf("option:\n");
+	UPrintf(USTR("sarctool %") PRIUS USTR(" by dnasdw\n\n"), AToU(SARCTOOL_VERSION).c_str());
+	UPrintf(USTR("usage: sarctool [option...] [option]...\n\n"));
+	UPrintf(USTR("sample:\n"));
+	UPrintf(USTR("  sarctool -xvfd input.sarc outputdir\n"));
+	UPrintf(USTR("  sarctool -cvfd output.sarc inputdir\n"));
+	UPrintf(USTR("  sarctool -cvfd output.sarc inputdir -o big -a 8192\n"));
+	UPrintf(USTR("\n"));
+	UPrintf(USTR("option:\n"));
 	SOption* pOption = s_Option;
 	while (pOption->Name != nullptr || pOption->Doc != nullptr)
 	{
 		if (pOption->Name != nullptr)
 		{
-			printf("  ");
+			UPrintf(USTR("  "));
 			if (pOption->Key != 0)
 			{
-				printf("-%c,", pOption->Key);
+				UPrintf(USTR("-%c,"), pOption->Key);
 			}
 			else
 			{
-				printf("   ");
+				UPrintf(USTR("   "));
 			}
-			printf(" --%-8s", pOption->Name);
-			if (strlen(pOption->Name) >= 8 && pOption->Doc != nullptr)
+			UPrintf(USTR(" --%-8") PRIUS, pOption->Name);
+			if (UCslen(pOption->Name) >= 8 && pOption->Doc != nullptr)
 			{
-				printf("\n%16s", "");
+				UPrintf(USTR("\n%16") PRIUS, USTR(""));
 			}
 		}
 		if (pOption->Doc != nullptr)
 		{
-			printf("%s", pOption->Doc);
+			UPrintf(USTR("%") PRIUS, pOption->Doc);
 		}
-		printf("\n");
+		UPrintf(USTR("\n"));
 		pOption++;
 	}
 	return 0;
@@ -150,19 +175,19 @@ int CSarcTool::Help()
 
 int CSarcTool::Action()
 {
-	if (m_eAction == kActionExport)
+	if (m_eAction == kActionExtract)
 	{
-		if (!exportFile())
+		if (!extractFile())
 		{
-			printf("ERROR: export file failed\n\n");
+			UPrintf(USTR("ERROR: extract file failed\n\n"));
 			return 1;
 		}
 	}
-	if (m_eAction == kActionImport)
+	if (m_eAction == kActionCreate)
 	{
-		if (!importFile())
+		if (!createFile())
 		{
-			printf("ERROR: import file failed\n\n");
+			UPrintf(USTR("ERROR: create file failed\n\n"));
 			return 1;
 		}
 	}
@@ -173,58 +198,138 @@ int CSarcTool::Action()
 	return 0;
 }
 
-CSarcTool::EParseOptionReturn CSarcTool::parseOptions(const char* a_pName, int& a_nIndex, int a_nArgc, char* a_pArgv[])
+CSarcTool::EParseOptionReturn CSarcTool::parseOptions(const UChar* a_pName, int& a_nIndex, int a_nArgc, UChar* a_pArgv[])
 {
-	if (strcmp(a_pName, "export") == 0)
+	if (UCscmp(a_pName, USTR("extract")) == 0)
 	{
 		if (m_eAction == kActionNone)
 		{
-			m_eAction = kActionExport;
+			m_eAction = kActionExtract;
 		}
-		else if (m_eAction != kActionExport && m_eAction != kActionHelp)
+		else if (m_eAction != kActionExtract && m_eAction != kActionHelp)
 		{
 			return kParseOptionReturnOptionConflict;
 		}
 	}
-	else if (strcmp(a_pName, "import") == 0)
+	else if (UCscmp(a_pName, USTR("create")) == 0)
 	{
 		if (m_eAction == kActionNone)
 		{
-			m_eAction = kActionImport;
+			m_eAction = kActionCreate;
 		}
-		else if (m_eAction != kActionImport && m_eAction != kActionHelp)
+		else if (m_eAction != kActionCreate && m_eAction != kActionHelp)
 		{
 			return kParseOptionReturnOptionConflict;
 		}
 	}
-	else if (strcmp(a_pName, "file") == 0)
+	else if (UCscmp(a_pName, USTR("file")) == 0)
 	{
 		if (a_nIndex + 1 >= a_nArgc)
 		{
 			return kParseOptionReturnNoArgument;
 		}
-		m_pFileName = a_pArgv[++a_nIndex];
+		m_sFileName = a_pArgv[++a_nIndex];
 	}
-	else if (strcmp(a_pName, "dir") == 0)
+	else if (UCscmp(a_pName, USTR("dir")) == 0)
 	{
 		if (a_nIndex + 1 >= a_nArgc)
 		{
 			return kParseOptionReturnNoArgument;
 		}
-		m_pDirName = a_pArgv[++a_nIndex];
+		m_sDirName = a_pArgv[++a_nIndex];
 	}
-	else if (strcmp(a_pName, "verbose") == 0)
+	else if (UCscmp(a_pName, USTR("endianness")) == 0)
+	{
+		if (a_nIndex + 1 >= a_nArgc)
+		{
+			return kParseOptionReturnNoArgument;
+		}
+		UString sEndianness = a_pArgv[++a_nIndex];
+		if (sEndianness == USTR("big"))
+		{
+			m_eEndianness = CSarc::kEndianBig;
+		}
+		else if (sEndianness == USTR("little"))
+		{
+			m_eEndianness = CSarc::kEndianLittle;
+		}
+		else
+		{
+			m_sMessage = sEndianness;
+			return kParseOptionReturnUnknownArgument;
+		}
+	}
+	else if (UCscmp(a_pName, USTR("alignment")) == 0)
+	{
+		if (a_nIndex + 1 >= a_nArgc)
+		{
+			return kParseOptionReturnNoArgument;
+		}
+		UString sAlignment = a_pArgv[++a_nIndex];
+		n32 nAlignment = SToN32(sAlignment);
+		if (nAlignment < 4)
+		{
+			m_sMessage = sAlignment;
+			return kParseOptionReturnUnknownArgument;
+		}
+		if (nAlignment != 192)
+		{
+			bitset<32> bsAlignment(nAlignment);
+			if (bsAlignment.count() != 1)
+			{
+				m_sMessage = sAlignment;
+				return kParseOptionReturnUnknownArgument;
+			}
+		}
+		m_nAlignment = nAlignment;
+	}
+	else if (UCscmp(a_pName, USTR("key")) == 0)
+	{
+		if (a_nIndex + 1 >= a_nArgc)
+		{
+			return kParseOptionReturnNoArgument;
+		}
+		UString sKey = a_pArgv[++a_nIndex];
+		m_uHashKey = SToU32(sKey);
+	}
+	else if (UCscmp(a_pName, USTR("code-page")) == 0)
+	{
+		if (a_nIndex + 1 >= a_nArgc)
+		{
+			return kParseOptionReturnNoArgument;
+		}
+		UString sCodePage = a_pArgv[++a_nIndex];
+		m_uCodePage = SToU32(sCodePage);
+	}
+	else if (UCscmp(a_pName, USTR("code-name")) == 0)
+	{
+		if (a_nIndex + 1 >= a_nArgc)
+		{
+			return kParseOptionReturnNoArgument;
+		}
+		UString sCodeName = a_pArgv[++a_nIndex];
+		m_sCodeName = UToA(sCodeName);
+	}
+	else if (UCscmp(a_pName, USTR("no-name")) == 0)
+	{
+		m_bNoName = true;
+	}
+	else if (UCscmp(a_pName, USTR("name-is-hash")) == 0)
+	{
+		m_bNameIsHash = true;
+	}
+	else if (UCscmp(a_pName, USTR("verbose")) == 0)
 	{
 		m_bVerbose = true;
 	}
-	else if (strcmp(a_pName, "help") == 0)
+	else if (UCscmp(a_pName, USTR("help")) == 0)
 	{
 		m_eAction = kActionHelp;
 	}
 	return kParseOptionReturnSuccess;
 }
 
-CSarcTool::EParseOptionReturn CSarcTool::parseOptions(int a_nKey, int& a_nIndex, int m_nArgc, char* a_pArgv[])
+CSarcTool::EParseOptionReturn CSarcTool::parseOptions(int a_nKey, int& a_nIndex, int m_nArgc, UChar* a_pArgv[])
 {
 	for (SOption* pOption = s_Option; pOption->Name != nullptr || pOption->Key != 0 || pOption->Doc != nullptr; pOption++)
 	{
@@ -236,27 +341,35 @@ CSarcTool::EParseOptionReturn CSarcTool::parseOptions(int a_nKey, int& a_nIndex,
 	return kParseOptionReturnIllegalOption;
 }
 
-bool CSarcTool::exportFile()
+bool CSarcTool::extractFile()
 {
 	CSarc sarc;
-	sarc.SetFileName(m_pFileName);
-	sarc.SetDirName(m_pDirName);
+	sarc.SetFileName(m_sFileName);
+	sarc.SetDirName(m_sDirName);
+	sarc.SetCodePage(m_uCodePage);
+	sarc.SetCodeName(m_sCodeName);
 	sarc.SetVerbose(m_bVerbose);
-	return sarc.ExportFile();
+	return sarc.ExtractFile();
 }
 
-bool CSarcTool::importFile()
+bool CSarcTool::createFile()
 {
 	CSarc sarc;
-	sarc.SetFileName(m_pFileName);
-	sarc.SetDirName(m_pDirName);
+	sarc.SetFileName(m_sFileName);
+	sarc.SetDirName(m_sDirName);
+	sarc.SetEndianness(m_eEndianness);
+	sarc.SetAlignment(m_nAlignment);
+	sarc.SetHashKey(m_uHashKey);
+	sarc.SetCodePage(m_uCodePage);
+	sarc.SetCodeName(m_sCodeName);
+	sarc.SetNoName(m_bNoName);
+	sarc.SetNameIsHash(m_bNameIsHash);
 	sarc.SetVerbose(m_bVerbose);
-	return sarc.ImportFile();
+	return sarc.CreateFile();
 }
 
-int main(int argc, char* argv[])
+int UMain(int argc, UChar* argv[])
 {
-	FSetLocale();
 	CSarcTool tool;
 	if (tool.ParseOptions(argc, argv) != 0)
 	{

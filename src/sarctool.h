@@ -1,7 +1,8 @@
 #ifndef SARCTOOL_H_
 #define SARCTOOL_H_
 
-#include "utility.h"
+#include <sdw.h>
+#include "sarc.h"
 
 class CSarcTool
 {
@@ -11,37 +12,46 @@ public:
 		kParseOptionReturnSuccess,
 		kParseOptionReturnIllegalOption,
 		kParseOptionReturnNoArgument,
+		kParseOptionReturnUnknownArgument,
 		kParseOptionReturnOptionConflict
 	};
 	enum EAction
 	{
 		kActionNone,
-		kActionExport,
-		kActionImport,
+		kActionExtract,
+		kActionCreate,
 		kActionHelp
 	};
 	struct SOption
 	{
-		const char* Name;
+		const UChar* Name;
 		int Key;
-		const char* Doc;
+		const UChar* Doc;
 	};
 	CSarcTool();
 	~CSarcTool();
-	int ParseOptions(int a_nArgc, char* a_pArgv[]);
+	int ParseOptions(int a_nArgc, UChar* a_pArgv[]);
 	int CheckOptions();
 	int Help();
 	int Action();
 	static SOption s_Option[];
 private:
-	EParseOptionReturn parseOptions(const char* a_pName, int& a_nIndex, int a_nArgc, char* a_pArgv[]);
-	EParseOptionReturn parseOptions(int a_nKey, int& a_nIndex, int a_nArgc, char* a_pArgv[]);
-	bool exportFile();
-	bool importFile();
+	EParseOptionReturn parseOptions(const UChar* a_pName, int& a_nIndex, int a_nArgc, UChar* a_pArgv[]);
+	EParseOptionReturn parseOptions(int a_nKey, int& a_nIndex, int a_nArgc, UChar* a_pArgv[]);
+	bool extractFile();
+	bool createFile();
 	EAction m_eAction;
-	const char* m_pFileName;
-	const char* m_pDirName;
+	UString m_sFileName;
+	UString m_sDirName;
+	CSarc::EEndianness m_eEndianness;
+	n32 m_nAlignment;
+	u32 m_uHashKey;
+	u32 m_uCodePage;
+	string m_sCodeName;
+	bool m_bNoName;
+	bool m_bNameIsHash;
 	bool m_bVerbose;
+	UString m_sMessage;
 };
 
 #endif	// SARCTOOL_H_
