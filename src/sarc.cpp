@@ -454,6 +454,17 @@ void CSarc::createEntryName()
 
 bool CSarc::calculateFileOffset()
 {
+	n32 nAlignmentMax = m_nAlignment;
+	for (vector<SCreateEntry>::iterator it = m_vCreateEntry.begin(); it != m_vCreateEntry.end(); ++it)
+	{
+		SCreateEntry& currentEntry = *it;
+		n32 nEntryAlignment = getAlignment(currentEntry.EntryName, currentEntry.Path);
+		if (nEntryAlignment > nAlignmentMax)
+		{
+			nAlignmentMax = nEntryAlignment;
+		}
+	}
+	m_SarcHeader.FileSize = static_cast<u32>(Align(m_SarcHeader.FileSize, nAlignmentMax));
 	for (vector<SCreateEntry>::iterator it = m_vCreateEntry.begin(); it != m_vCreateEntry.end(); ++it)
 	{
 		SCreateEntry& currentEntry = *it;
