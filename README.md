@@ -7,6 +7,7 @@ A tool for extracting/creating sarc file.
 - v1.0.0 @ 2015.03.02 - First release
 - v1.0.1 @ 2017.06.16 - Refactoring
 - v1.0.2 @ 2017.08.01 - Fix sarc header
+- v1.0.3 @ 2017.08.23 - Fix typo
 
 ## Platforms
 
