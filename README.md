@@ -4,6 +4,10 @@ A tool for extracting/creating sarc file.
 
 ## History
 
+- v1.1.0 @ 2018.01.04 - A new beginning
+
+### v1.0
+
 - v1.0.0 @ 2015.03.02 - First release
 - v1.0.1 @ 2017.06.16 - Refactoring
 - v1.0.2 @ 2017.08.01 - Fix sarc header
