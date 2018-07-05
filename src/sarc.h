@@ -59,6 +59,8 @@ public:
 	void SetDirName(const UString& a_sDirName);
 	void SetEndianness(EEndianness a_eEndianness);
 	void SetAlignment(n32 a_nAlignment);
+	void SetUniqueAlignment(const map<n32, vector<URegex>>& a_mUniqueAlignment);
+	void SetDataOffsetAlignment(n32 a_nDataOffsetAlignment);
 	void SetHashKey(u32 a_uHashKey);
 	void SetCodePage(u32 a_uCodePage);
 	void SetCodeName(const string& a_sCodeName);
@@ -91,6 +93,8 @@ private:
 	UString m_sDirName;
 	EEndianness m_eEndianness;
 	n32 m_nAlignment;
+	map<n32, vector<URegex>> m_mUniqueAlignment;
+	n32 m_nDataOffsetAlignment;
 	u32 m_uHashKey;
 	u32 m_uCodePage;
 	string m_sCodeName;

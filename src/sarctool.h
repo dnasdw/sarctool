@@ -45,6 +45,8 @@ private:
 	UString m_sDirName;
 	CSarc::EEndianness m_eEndianness;
 	n32 m_nAlignment;
+	map<n32, vector<URegex>> m_mUniqueAlignment;
+	n32 m_nDataOffsetAlignment;
 	u32 m_uHashKey;
 	u32 m_uCodePage;
 	string m_sCodeName;

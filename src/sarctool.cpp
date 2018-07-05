@@ -8,6 +8,8 @@ CSarcTool::SOption CSarcTool::s_Option[] =
 	{ USTR("dir"), USTR('d'), USTR("the dir for the sarc file") },
 	{ USTR("endianness"), USTR('o'), USTR("[big|little]\n\t\tthe endianness, default is little") },
 	{ USTR("alignment"), USTR('a'), USTR("[192|2 factorial (more than 4)]\n\t\tthe alignment, default is 4") },
+	{ USTR("unique-alignment"), USTR('r'), USTR("the path regex pattern and the unique alignment") },
+	{ USTR("data-offset-alignment"), 0, USTR("[0(auto)|192|2 factorial (more than 4)]\n\t\tthe sarc header DataOffset alignment, default is 0") },
 	{ USTR("key"), USTR('k'), USTR("the hash key, default is 101") },
 	{ USTR("code-page"), USTR('p'), USTR("code page of SFNT, default is 0 (Windows only)") },
 	{ USTR("code-name"), USTR('e'), USTR("encoding name of SFNT, default is UTF-8 (non-Windows only)") },
@@ -22,6 +24,7 @@ CSarcTool::CSarcTool()
 	: m_eAction(kActionNone)
 	, m_eEndianness(CSarc::kEndianLittle)
 	, m_nAlignment(4)
+	, m_nDataOffsetAlignment(0)
 	, m_uHashKey(101)
 	, m_uCodePage(0)
 	, m_sCodeName("UTF-8")
@@ -141,6 +144,7 @@ int CSarcTool::Help()
 	UPrintf(USTR("  sarctool -xvfd input.sarc outputdir\n"));
 	UPrintf(USTR("  sarctool -cvfd output.sarc inputdir\n"));
 	UPrintf(USTR("  sarctool -cvfd output.sarc inputdir -o big -a 8192\n"));
+	UPrintf(USTR("  sarctool -cvfd output.sarc inputdir -r \\.bch 128 --data-offset-alignment 128\n"));
 	UPrintf(USTR("\n"));
 	UPrintf(USTR("option:\n"));
 	SOption* pOption = s_Option;
@@ -283,6 +287,68 @@ CSarcTool::EParseOptionReturn CSarcTool::parseOptions(const UChar* a_pName, int&
 		}
 		m_nAlignment = nAlignment;
 	}
+	else if (UCscmp(a_pName, USTR("unique-alignment")) == 0)
+	{
+		if (a_nIndex + 2 >= a_nArgc)
+		{
+			return kParseOptionReturnNoArgument;
+		}
+		UString sPattern = a_pArgv[++a_nIndex];
+		UString sAlignment = a_pArgv[++a_nIndex];
+		n32 nAlignment = SToN32(sAlignment);
+		if (nAlignment < 4)
+		{
+			m_sMessage = sAlignment;
+			return kParseOptionReturnUnknownArgument;
+		}
+		if (nAlignment != 192)
+		{
+			bitset<32> bsAlignment(nAlignment);
+			if (bsAlignment.count() != 1)
+			{
+				m_sMessage = sAlignment;
+				return kParseOptionReturnUnknownArgument;
+			}
+		}
+		try
+		{
+			URegex rPattern(sPattern, regex_constants::ECMAScript | regex_constants::icase);
+			m_mUniqueAlignment[nAlignment].push_back(rPattern);
+		}
+		catch (regex_error& e)
+		{
+			UPrintf(USTR("ERROR: %") PRIUS USTR("\n\n"), AToU(e.what()).c_str());
+			m_sMessage = sPattern;
+			return kParseOptionReturnUnknownArgument;
+		}
+	}
+	else if (UCscmp(a_pName, USTR("data-offset-alignment")) == 0)
+	{
+		if (a_nIndex + 1 >= a_nArgc)
+		{
+			return kParseOptionReturnNoArgument;
+		}
+		UString sAlignment = a_pArgv[++a_nIndex];
+		n32 nAlignment = SToN32(sAlignment);
+		if (nAlignment != 0)
+		{
+			if (nAlignment < 4)
+			{
+				m_sMessage = sAlignment;
+				return kParseOptionReturnUnknownArgument;
+			}
+			if (nAlignment != 192)
+			{
+				bitset<32> bsAlignment(nAlignment);
+				if (bsAlignment.count() != 1)
+				{
+					m_sMessage = sAlignment;
+					return kParseOptionReturnUnknownArgument;
+				}
+			}
+		}
+		m_nDataOffsetAlignment = nAlignment;
+	}
 	else if (UCscmp(a_pName, USTR("key")) == 0)
 	{
 		if (a_nIndex + 1 >= a_nArgc)
@@ -359,6 +425,8 @@ bool CSarcTool::createFile()
 	sarc.SetDirName(m_sDirName);
 	sarc.SetEndianness(m_eEndianness);
 	sarc.SetAlignment(m_nAlignment);
+	sarc.SetUniqueAlignment(m_mUniqueAlignment);
+	sarc.SetDataOffsetAlignment(m_nDataOffsetAlignment);
 	sarc.SetHashKey(m_uHashKey);
 	sarc.SetCodePage(m_uCodePage);
 	sarc.SetCodeName(m_sCodeName);

@@ -53,6 +53,16 @@ void CSarc::SetAlignment(n32 a_nAlignment)
 	m_nAlignment = a_nAlignment;
 }
 
+void CSarc::SetUniqueAlignment(const map<n32, vector<URegex>>& a_mUniqueAlignment)
+{
+	m_mUniqueAlignment = a_mUniqueAlignment;
+}
+
+void CSarc::SetDataOffsetAlignment(n32 a_nDataOffsetAlignment)
+{
+	m_nDataOffsetAlignment = a_nDataOffsetAlignment;
+}
+
 void CSarc::SetHashKey(u32 a_uHashKey)
 {
 	m_uHashKey = a_uHashKey;
@@ -454,17 +464,22 @@ void CSarc::createEntryName()
 
 bool CSarc::calculateFileOffset()
 {
-	n32 nAlignmentMax = m_nAlignment;
-	for (vector<SCreateEntry>::iterator it = m_vCreateEntry.begin(); it != m_vCreateEntry.end(); ++it)
+	n32 nAlignment = m_nDataOffsetAlignment;
+	if (m_nDataOffsetAlignment == 0)
 	{
-		SCreateEntry& currentEntry = *it;
-		n32 nEntryAlignment = getAlignment(currentEntry.EntryName, currentEntry.Path);
-		if (nEntryAlignment > nAlignmentMax)
+		n32 nAlignmentMax = m_nAlignment;
+		for (vector<SCreateEntry>::iterator it = m_vCreateEntry.begin(); it != m_vCreateEntry.end(); ++it)
 		{
-			nAlignmentMax = nEntryAlignment;
+			SCreateEntry& currentEntry = *it;
+			n32 nEntryAlignment = getAlignment(currentEntry.EntryName, currentEntry.Path);
+			if (nEntryAlignment > nAlignmentMax)
+			{
+				nAlignmentMax = nEntryAlignment;
+			}
 		}
+		nAlignment = nAlignmentMax;
 	}
-	m_SarcHeader.FileSize = static_cast<u32>(Align(m_SarcHeader.FileSize, nAlignmentMax));
+	m_SarcHeader.FileSize = static_cast<u32>(Align(m_SarcHeader.FileSize, nAlignment));
 	for (vector<SCreateEntry>::iterator it = m_vCreateEntry.begin(); it != m_vCreateEntry.end(); ++it)
 	{
 		SCreateEntry& currentEntry = *it;
@@ -536,6 +551,18 @@ n32 CSarc::getAlignment(const string& a_sEntryName, const UString& a_sPath) cons
 			return 0x800;
 		case kEndianLittle:
 			return 0x80;
+		}
+	}
+	for (map<n32, vector<URegex>>::const_reverse_iterator it = m_mUniqueAlignment.rbegin(); it != m_mUniqueAlignment.rend(); ++it)
+	{
+		n32 nAlignment = it->first;
+		const vector<URegex>& vRegex = it->second;
+		for (vector<URegex>::const_iterator itRegex = vRegex.begin(); itRegex != vRegex.end(); ++itRegex)
+		{
+			if (regex_search(a_sPath, *itRegex))
+			{
+				return nAlignment;
+			}
 		}
 	}
 	return m_nAlignment;

@@ -4,6 +4,10 @@ A tool for extracting/creating sarc file.
 
 ## History
 
+- v1.2.0 @ 2018.07.05 - Support more alignment
+
+### v1.1
+
 - v1.1.0 @ 2018.01.04 - A new beginning
 
 ### v1.0
