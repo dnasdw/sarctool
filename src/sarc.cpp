@@ -508,17 +508,7 @@ bool CSarc::calculateFileOffset()
 
 n32 CSarc::getAlignment(const string& a_sEntryName, const UString& a_sPath) const
 {
-	if (EndWith(a_sEntryName, ".bffnt"))
-	{
-		switch (m_eEndianness)
-		{
-		case kEndianBig:
-			return 0x2000;
-		case kEndianLittle:
-			return 0x80;
-		}
-	}
-	else if (EndWith(a_sEntryName, ".bflim"))
+	if (EndWith(a_sEntryName, ".bflim"))
 	{
 		do
 		{
@@ -563,6 +553,16 @@ n32 CSarc::getAlignment(const string& a_sEntryName, const UString& a_sPath) cons
 			{
 				return nAlignment;
 			}
+		}
+	}
+	if (EndWith(a_sEntryName, ".bffnt"))
+	{
+		switch (m_eEndianness)
+		{
+		case kEndianBig:
+			return 0x2000;
+		case kEndianLittle:
+			return 0x80;
 		}
 	}
 	return m_nAlignment;

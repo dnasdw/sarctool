@@ -5,6 +5,7 @@ A tool for extracting/creating sarc file.
 ## History
 
 - v1.2.0 @ 2018.07.05 - Support more alignment
+- v1.2.1 @ 2018.07.14 - Support modify .bffnt alignment
 
 ### v1.1
 
